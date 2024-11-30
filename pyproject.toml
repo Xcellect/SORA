@@ -1,0 +1,14 @@
+# pyproject.toml
+[project]
+name = "SORA"
+version = "0.1.0"
+description = "Superintelligent Obsidian Research Automation"
+requires-python = ">=3.10"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "B"]
