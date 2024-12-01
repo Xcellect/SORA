@@ -31,10 +31,12 @@ data/*.db
 data/*.sqlite
 
 # PDFs and Data
-papers/pdf/*
+papers/*
 data/*
+notes/*
+!papers/.gitkeep
 !data/.gitkeep
-!papers/pdf/.gitkeep
+!notes/.gitkeep
 
 # Environment variables
 .env

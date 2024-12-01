@@ -31,4 +31,4 @@ class Settings:
     PAPERS_PER_CATEGORY = 100  # Default value, can be overridden
     FORCE_UPDATE = False  # Default value
     # Database
-    DB_URL = f"sqlite:///{DATA_DIR}/papers.db"
+    DB_URL = "sqlite+aiosqlite:///paper_collection.db"  # Change from sqlite:/// to sqlite+aiosqlite:///

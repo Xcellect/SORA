@@ -23,10 +23,11 @@ class ObsidianManager:
         llm_analysis = analysis.get('llm_analysis', {})
         
         # Create note content
-        content = self._generate_note_content(paper, llm_analysis)
+        content = self._generate_note_content(paper, llm_analysis, metadata)
         
         # Write note file
         note_path.write_text(content)
+        print(f"DEBUG: Created note at {note_path}")
         
         # Update index
         self._update_index(paper)
@@ -34,96 +35,134 @@ class ObsidianManager:
         return note_path
 
     def _generate_note_filename(self, paper: Paper) -> str:
-        """Generate a descriptive filename for the note"""
+        """Generate a safe filename for the note"""
         try:
-            # Get first 4 words of title
-            title_words = paper.title.split()[:4]
-            title_part = "-".join(word.lower() for word in title_words)
+            # Basic sanitization of the title
+            safe_title = "".join(c for c in paper.title[:50] if c.isalnum() or c in (' ', '-'))
+            safe_title = safe_title.replace(' ', '-').lower()
             
-            # Get first author
-            first_author = paper.authors[0] if isinstance(paper.authors, list) and paper.authors else "unknown"
-            first_author = first_author.replace(" ", "-").lower()
-            
-            # Get year
-            year = getattr(paper, 'year', datetime.now().year)
-            
-            # Combine parts
-            filename = f"{title_part}-{first_author}-{year}"
-            
-            # Clean filename of invalid characters
-            filename = re.sub(r'[^\w\-]', '', filename)
-            
-            return f"{filename}.md"
-            
+            return f"{paper.id}_{safe_title}.md"
         except Exception as e:
             print(f"DEBUG: Error generating filename: {e}")
-            return f"{paper.id}.md"  # Fallback to ID-based filename
+            return f"paper-{paper.id}.md"
 
-    def _generate_note_content(self, paper: Paper, analysis: Dict) -> str:
+    def _generate_note_content(self, paper: Paper, analysis: Dict, metadata: Dict) -> str:
         """Generate formatted note content"""
-        # Helper function to safely get metadata attributes
-        def get_metadata(obj, key: str, default: str = "N/A") -> str:
-            return obj.paper_metadata.get(key, default) if hasattr(obj, 'paper_metadata') else default
+        # Helper function to format section content
+        def format_section(section_data: Dict, key: str) -> str:
+            if not section_data or key not in section_data:
+                return "No data available"
+            
+            content = []
+            for subkey, value in section_data[key].items():
+                content.append(f"### {subkey}")
+                if isinstance(value, list):
+                    content.extend([f"- {item}" for item in value if item])
+                else:
+                    content.append(str(value))
+                content.append("")
+            return "\n".join(content)
+
+        # Helper function to format tags
+        def format_tags(tags_data: Dict) -> str:
+            if not tags_data or 'Relevant Tags' not in tags_data:
+                return "No tags available"
+            
+            all_tags = []
+            for category, tags in tags_data['Relevant Tags'].items():
+                if isinstance(tags, list):
+                    all_tags.extend(tags)
+            
+            return " ".join([f"#{tag.replace(' ', '_')}" for tag in all_tags if tag])
+
+        # Get document structure
+        doc_structure = metadata.get('document_structure', {})
+        figures_tables = metadata.get('figures_tables', {})
         
-        # Format PDF link to prefer ArXiv
-        arxiv_id = get_metadata(paper, 'arxiv_id')
-        pdf_link = f"https://arxiv.org/pdf/{arxiv_id}.pdf" if arxiv_id != "N/A" else paper.pdf_path
-        
+        # Get the appropriate URL based on source
+        if paper.source == 'zotero':
+            paper_url = paper.url if paper.url and paper.url.startswith('http') else 'No URL available'
+        else:  # arxiv
+            arxiv_id = paper.paper_metadata.get('arxiv_id', '')
+            paper_url = f"https://arxiv.org/abs/{arxiv_id}" if arxiv_id else (paper.url or 'No URL available')
+            
+        # Get publication date
+        pub_date = None
+        if paper.date:
+            pub_date = paper.date.year
+        elif paper.paper_metadata and 'published' in paper.paper_metadata:
+            pub_date = paper.paper_metadata['published'][:4]  # Get year from YYYY-MM-DD
+            
         content = [
             f"# {paper.title}",
             "",
             "## Metadata",
-            f"- **Authors**: {paper.authors}",
-            f"- **Published**: {get_metadata(paper, 'published')}",
-            f"- **ArXiv ID**: {get_metadata(paper, 'arxiv_id')}",
-            f"- **PDF**: {pdf_link}",
+            f"- **Authors**: {', '.join(paper.authors) if isinstance(paper.authors, list) else paper.authors}",
+            f"- **Year**: {pub_date or 'N/A'}",
+            f"- **Source**: {paper.source}",
+            f"- **URL**: {paper_url}",
+            f"- **Pages**: {doc_structure.get('total_pages', 'N/A')}",
             "",
             "## Research Context",
-            self._format_section(analysis.get('Research Context', {})),
+            format_section(analysis, 'Research Context'),
             "",
             "## Key Methods and Technologies",
-            self._format_section(analysis.get('Key Methods and Technologies', {})),
+            format_section(analysis, 'Key Methods and Technologies'),
             "",
             "## Technical Contributions",
-            self._format_section(analysis.get('Technical Contributions', {})),
+            format_section(analysis, 'Technical Contributions'),
             "",
             "## Implementation Details",
-            self._format_section(analysis.get('Implementation Details', {})),
+            format_section(analysis, 'Implementation Details'),
             "",
             "## Research Impact",
-            self._format_section(analysis.get('Research Impact', {})),
+            format_section(analysis, 'Research Impact'),
+            "",
+            "## Document Structure",
+            "### Sections",
+            self._format_sections(doc_structure.get('sections', [])),
+            "",
+            "### Figures and Tables",
+            self._format_figures_tables(figures_tables),
             "",
             "## Tags",
-            self._format_tags(analysis.get('Relevant Tags', [])),
+            format_tags(analysis),
             "",
             f"Created: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
         ]
         
         return "\n".join(content)
-    
-    def _format_section(self, section_data: Dict) -> str:
-        """Format a section of the analysis"""
-        if not section_data:
-            return "No data available"
-            
-        content = []
-        for key, value in section_data.items():
-            if isinstance(value, list):
-                content.append(f"### {key}")
-                content.extend([f"- {item}" for item in value])
-            else:
-                content.append(f"### {key}")
-                content.append(str(value))
-            content.append("")
+
+    def _format_sections(self, sections: list) -> str:
+        """Format document sections"""
+        if not sections:
+            return "No section information available"
         
-        return "\n".join(content)
-    
-    def _format_tags(self, tags: list) -> str:
-        """Format tags for Obsidian"""
-        if not tags:
-            return "No tags available"
-        return " ".join([f"#{tag.replace(' ', '_')}" for tag in tags])
-    
+        formatted = []
+        for section in sections:
+            formatted.append(f"- {section['name']} (Page {section['page']})")
+        return "\n".join(formatted)
+
+    def _format_figures_tables(self, figures_tables: Dict) -> str:
+        """Format figures and tables information"""
+        content = []
+        
+        # Format figures
+        figures = figures_tables.get('figures', [])
+        if figures:
+            content.append("### Figures")
+            for fig in figures:
+                content.append(f"- Figure {fig['number']} (Page {fig['page']}): {fig['caption']}")
+        
+        # Format tables
+        tables = figures_tables.get('tables', [])
+        if tables:
+            content.append("\n### Tables")
+            for table in tables:
+                content.append(f"- Table {table['number']} (Page {table['page']}): {table['caption']}")
+        
+        return "\n".join(content) if content else "No figures or tables information available"
+
     def _create_index(self) -> None:
         """Create the research papers index"""
         content = [
@@ -146,7 +185,7 @@ class ObsidianManager:
         
         # Add to Recent Papers section
         recent_index = current_content.index("## Recent Papers") + 2
-        paper_link = f"- [[{paper.id}]] {paper.title}"
+        paper_link = f"- [[{self._generate_note_filename(paper)[:-3]}|{paper.title}]]"
         current_content.insert(recent_index, paper_link)
         
         # Write updated content

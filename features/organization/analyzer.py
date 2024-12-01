@@ -18,56 +18,45 @@ class ContentAnalyzer:
             http_client=httpx.AsyncClient()  # Explicitly disable proxies
         )
         
-        self.analysis_prompt = """
-        Analyze this research paper excerpt and extract the following information in JSON format:
+        self.system_prompt = """You are a multidisciplinary research paper analysis assistant. Analyze the provided paper and return a JSON response with the following structure:
+            {
+                "Key Methods and Technologies": {
+                    "Primary methods used": ["<string>"],
+                    "Technical frameworks and tools": ["<string>"],
+                    "Novel techniques or approaches": ["<string>"]
+                },
+                "Research Context": {
+                    "Main research area": "<string>",
+                    "Related fields and interdisciplinary connections": ["<string>"],
+                    "Problem domain and specific challenges addressed": ["<string>"]
+                },
+                "Technical Contributions": {
+                    "Novel approaches or methodologies introduced": ["<string>"],
+                    "Improvements to existing methods": ["<string>"],
+                    "Key results and performance metrics": ["<string>"],
+                    "Technical innovations": ["<string>"]
+                },
+                "Implementation Details": {
+                    "Equipment and tools used": ["<string>"],
+                    "Experimental setup": ["<string>"],
+                    "Data collection and analysis methods": ["<string>"]
+                },
+                "Research Impact": {
+                    "Key findings and breakthroughs": ["<string>"],
+                    "Limitations and future work": ["<string>"],
+                    "Potential applications": ["<string>"]
+                },
+                "Relevant Tags": {
+                    "Technical keywords": ["<string>"],
+                    "Research areas": ["<string>"],
+                    "Application domains": ["<string>"],
+                    "Method categories": ["<string>"]
+                }
+            }
+
+            Analyze the text and return only a JSON object matching this schema."""
         
-        1. Key Methods and Technologies:
-           - AI/ML methods used (e.g., transformers, neural networks, specific architectures)
-           - Technical frameworks and tools
-           - Novel techniques or approaches
-        
-        2. Research Context:
-           - Main research area (e.g., NLP, Computer Vision, Reinforcement Learning)
-           - Related fields and interdisciplinary connections
-           - Problem domain and specific challenges addressed
-        
-        3. Technical Contributions:
-           - Novel approaches or methodologies introduced
-           - Improvements to existing methods
-           - Key results and performance metrics
-           - Technical innovations
-        
-        4. Implementation Details:
-           - Frameworks and libraries used
-           - Experimental setup
-           - Datasets and benchmarks
-        
-        5. Research Impact:
-           - Key findings and breakthroughs
-           - Limitations and future work
-           - Potential applications
-        
-        6. Relevant Tags:
-           - Technical keywords
-           - Research areas
-           - Application domains
-           - Method categories
-        
-        Format the response as a valid JSON object with these categories.
-        Focus on extracting specific technical details and methodologies.
-        
-        Paper excerpt:
-        {text}
-        """
-        
-        # Citation patterns for reference extraction
-        self.citation_patterns = [
-            r'\[([\d,\s]+)\]',  # [1] or [1,2,3]
-            r'\(\w+\s*et\s*al\.,\s*\d{4}\)',  # (Author et al., 2023)
-            r'\[[\w\-]+,\s*\d{4}\]',  # [Author-2023]
-            r'\w+\s+and\s+\w+\s+\(\d{4}\)',  # Author and Author (2023)
-            r'\w+\s+et\s+al\.\s+\(\d{4}\)'  # Author et al. (2023)
-        ]
+        self.analysis_prompt = "Please analyze this research paper and provide a detailed analysis in JSON format:\n\n{text}"
     
     @retry(
         stop=stop_after_attempt(3),
@@ -77,29 +66,29 @@ class ContentAnalyzer:
     async def _analyze_with_llm(self, text: str) -> Dict:
         """Analyze text using GPT-4 with automatic retries"""
         try:
+            print(f"DEBUG: Starting LLM analysis, text length: {len(text)}")
             response = await self.client.chat.completions.create(
                 model="gpt-4-turbo-preview",
                 messages=[
-                    {
-                        "role": "system",
-                        "content": "You are a research paper analysis assistant, expert in AI, ML, and related fields. "
-                                 "Focus on extracting specific technical details and methodologies."
-                    },
-                    {
-                        "role": "user",
-                        "content": self.analysis_prompt.format(text=text[:8000])  # Truncate for token limit
-                    }
+                    {"role": "system", "content": self.system_prompt},
+                    {"role": "user", "content": self.analysis_prompt.format(text=text[:8000])}
                 ],
                 temperature=0.3,
                 response_format={"type": "json_object"}
             )
+            print("DEBUG: LLM response received")
             
-            return json.loads(response.choices[0].message.content)
+            result = json.loads(response.choices[0].message.content)
+            print(f"DEBUG: Parsed LLM response, keys: {result.keys()}")
+            return result
             
         except Exception as e:
-            print(f"Error in LLM analysis: {e}")
+            print(f"DEBUG: Error in LLM analysis: {str(e)}")
+            print(f"DEBUG: Error type: {type(e)}")
+            import traceback
+            print(f"DEBUG: Traceback:\n{traceback.format_exc()}")
             return {}
-    
+
     async def analyze_paper(self, paper: Paper) -> Dict:
         """Main analysis entry point for a paper"""
         print(f"\nDEBUG: Starting analysis for paper: {paper.title}")
@@ -155,44 +144,6 @@ class ContentAnalyzer:
                 doc.close()
                 print("DEBUG: Closed PDF document")
 
-    @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(min=1, max=10),
-        retry=retry_if_exception_type((openai.APIError, openai.APIConnectionError, openai.RateLimitError))
-    )
-    async def _analyze_with_llm(self, text: str) -> Dict:
-        """Analyze text using GPT-4 with automatic retries"""
-        try:
-            print(f"DEBUG: Starting LLM analysis, text length: {len(text)}")
-            response = await self.client.chat.completions.create(
-                model="gpt-4-turbo-preview",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are a research paper analysis assistant, expert in AI, ML, and related fields. "
-                                 "Focus on extracting specific technical details and methodologies."
-                    },
-                    {
-                        "role": "user",
-                        "content": self.analysis_prompt.format(text=text[:8000])  # Truncate for token limit
-                    }
-                ],
-                temperature=0.3,
-                response_format={"type": "json_object"}
-            )
-            print("DEBUG: LLM response received")
-            
-            result = json.loads(response.choices[0].message.content)
-            print(f"DEBUG: Parsed LLM response, keys: {result.keys()}")
-            return result
-            
-        except Exception as e:
-            print(f"DEBUG: Error in LLM analysis: {str(e)}")
-            print(f"DEBUG: Error type: {type(e)}")
-            import traceback
-            print(f"DEBUG: Traceback:\n{traceback.format_exc()}")
-            return {}
-
     async def _analyze_document_structure(self, doc: fitz.Document) -> Dict:
         """Analyze document structure"""
         try:
@@ -209,6 +160,7 @@ class ContentAnalyzer:
         except Exception as e:
             print(f"DEBUG: Error in document structure analysis: {str(e)}")
             return {}
+
         
     async def _identify_sections(self, doc: fitz.Document) -> List[Dict]:
         """Identify major sections in the paper"""
