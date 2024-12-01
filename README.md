@@ -57,29 +57,101 @@ cp .env.example .env
 
 ### Basic Commands
 
-- Collect papers:
+- Collect papers from ArXiv:
 ```bash
-python main.py --get 5
+python main.py --get 5 --source arxiv
 ```
 
-- Organize collected papers:
+- Collect papers from Zotero:
+```bash
+python main.py --get 5 --source zotero
+```
+
+- Organize collected papers and generate notes:
 ```bash
 python main.py --organize
 ```
+
+- Organize papers from a specific source:
+```bash
+python main.py --organize-only --source zotero
+```
+
+### Database Management
 
 - View database contents:
 ```bash
 python main.py --view
 ```
 
+- Export database to CSV:
+```bash
+python main.py --export
+```
+
+- Sync database with PDF files:
+```bash
+python main.py --sync
+```
+
+### Cleanup Operations
+
+- Clear collected papers and reset database:
+```bash
+python main.py --flush
+```
+
+- Clear paper metadata and Obsidian notes:
+```bash
+python main.py --flush-org
+```
+
 ### Additional Options
 
-- `--force`: Overwrite existing papers
-- `--sync`: Sync database with PDF files
-- `--flush`: Clear the collected papers
-- `--flush-org`: Clear the paper metadata and Obsidian notes
-- `--export`: Export database to CSV
+- `--force`: Overwrite existing papers and notes
+- `--source`: Specify source (arxiv or zotero)
 - `--organize-only`: Run organization without collection
+- `--get N`: Collect N papers per category
+
+### Example Workflows
+
+1. Collect and organize new papers:
+```bash
+python main.py --get 5 --source arxiv --organize
+```
+
+2. Update existing paper organization:
+```bash
+python main.py --organize-only --source zotero
+```
+
+3. Fresh start with new papers:
+```bash
+python main.py --flush
+python main.py --get 10 --source arxiv --organize
+```
+
+4. Export database after collection:
+```bash
+python main.py --get 5 --source zotero
+python main.py --export
+```
+
+### Generated Content
+
+Each organized paper includes:
+- PDF file in year-based directory
+- Detailed metadata JSON with analysis
+- Obsidian note with:
+  - Paper metadata and URL
+  - Research context
+  - Key methods
+  - Technical contributions
+  - Implementation details
+  - Research impact
+  - Document structure
+  - Figures and tables summary
+  - Auto-generated tags
 
 ## Project Structure
 ```bash
@@ -104,18 +176,6 @@ sora/
 └── tests/              # Test suite
 
 ```
-### Organization Structure
-Each organized paper includes:
-- PDF file in year-based directory
-- Detailed metadata JSON with analysis
-- Obsidian note with:
-  - Paper metadata
-  - Research context
-  - Key methods
-  - Technical contributions
-  - Implementation details
-  - Research impact
-  - Tags
 
 ## Configuration
 
