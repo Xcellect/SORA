@@ -26,7 +26,7 @@ SORA is an advanced research automation system that streamlines the collection, 
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/sora.git
+git clone https://github.com/Xcellect/SORA.git
 cd sora
 ```
 
@@ -59,10 +59,10 @@ cp .env.example .env
 
 - Collect papers:
 ```bash
-python main.py --papers-per-category 5
+python main.py --get 5
 ```
 
-- Organize collected papers in Obsidian:
+- Organize collected papers:
 ```bash
 python main.py --organize
 ```
@@ -76,23 +76,46 @@ python main.py --view
 
 - `--force`: Overwrite existing papers
 - `--sync`: Sync database with PDF files
-- `--flush`: Clear all data and start fresh
+- `--flush`: Clear the collected papers
+- `--flush-org`: Clear the paper metadata and Obsidian notes
 - `--export`: Export database to CSV
 - `--organize-only`: Run organization without collection
 
 ## Project Structure
-
+```bash
 sora/
 ├── config/             # Configuration settings
 ├── features/
 │ ├── collection/       # Paper collection functionality
 │ ├── organization/     # Organization and analysis
 │ └── shared/           # Shared utilities and models
-├── notebooks           # For advanced analysis
+├── notes/                        # Automated Obsidian notes by LLMs
+│ ├── Research Papers.md          # Index file
+│ ├── paper-title-author-year.md  # Individual paper notes
+├── notebooks           # For advanced analysis on ipynb
 ├── data/               # Database and exported data
-├── papers/             # Downloaded PDFs
+├── papers/             # Papers organized by publication year
+│ ├── by_year/ 
+│   ├── 2024/
+│   ├── 2023/
+│   ├── ...
+│ ├── metadata/         # JSON metadata for further analysis
+│ ├── pdf/              # Original PDFs
 └── tests/              # Test suite
 
+```
+### Organization Structure
+Each organized paper includes:
+- PDF file in year-based directory
+- Detailed metadata JSON with analysis
+- Obsidian note with:
+  - Paper metadata
+  - Research context
+  - Key methods
+  - Technical contributions
+  - Implementation details
+  - Research impact
+  - Tags
 
 ## Configuration
 
@@ -115,13 +138,11 @@ Required environment variables:
 pytest tests/
 ```
 
-
 ### Code Style
 This project uses `ruff` for linting:
 ```bash
 ruff check .
 ```
-
 
 ## Dependencies
 
@@ -155,5 +176,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Contact
 
-Your Name - [@xcellect](https://x.com/xcellect)
-Project Link: [https://github.com/yourusername/sora](https://github.com/xcellect/sora)
+Aishik S. - [@xcellect](https://x.com/xcellect)
