@@ -17,6 +17,9 @@ class Settings:
     ZOTERO_LIBRARY_ID = os.getenv("ZOTERO_LIBRARY_ID")
     ZOTERO_API_KEY = os.getenv("ZOTERO_API_KEY")
     ZOTERO_LIBRARY_TYPE = "user"  # or "group"
+
+    # OpenAI
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
     
     # ArXiv categories
     ARXIV_CATEGORIES = [

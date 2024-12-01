@@ -20,6 +20,7 @@ class Paper(Base):
     source = Column(String, nullable=False)
     added_date = Column(DateTime, default=datetime.utcnow)
     processed = Column(Integer, default=0)
+    organized: bool = False  # Add this field to track organization status
 
 def init_db() -> Session:
     engine = create_engine(Settings.DB_URL)

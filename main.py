@@ -182,10 +182,11 @@ async def organize_papers():
         
         for paper in papers:
             try:
-                metadata = await organizer.organize_paper(paper)
-                paper.processed_metadata = metadata
-                paper.organized = 1
-                session.merge(paper)
+                result = await organizer.organize_paper(paper)
+                if result['status'] == 'organized':
+                    paper.organized = 1
+                    paper.organized_paths = result['paths']
+                    session.merge(paper)
                 progress_bar.update(1)
             except Exception as e:
                 print(f"\nError organizing paper {paper.title}: {e}")
@@ -200,11 +201,26 @@ async def organize_papers():
     finally:
         session.close()
 
+
+async def flush_organization():
+    """Delete all organization-related files and directories"""
+    paths_to_flush = [
+        Settings.BASE_DIR / "notes",
+        Settings.BASE_DIR / "papers" / "by_year",
+        Settings.BASE_DIR / "papers" / "metadata"
+    ]
+    
+    for path in paths_to_flush:
+        if path.exists():
+            shutil.rmtree(path)
+            path.mkdir(parents=True)
+            print(f"Cleared {path}")
+
 async def main():
     parser = argparse.ArgumentParser(description='Collect and organize research papers')
     parser.add_argument('--force', action='store_true',
                        help='Overwrite existing papers with same titles')
-    parser.add_argument('--papers-per-category', type=int, default=100,
+    parser.add_argument('--get', type=int, default=100,
                        help='Number of papers to collect per category (default: 100)')
     parser.add_argument('--flush', action='store_true',
                        help='Delete all downloaded PDFs and reset processed status')
@@ -218,6 +234,10 @@ async def main():
                        help='Organize collected papers')
     parser.add_argument('--organize-only', action='store_true',
                        help='Only organize papers without collecting new ones')
+    parser.add_argument('--flush-org', action='store_true',
+                       help='Flush organization directories (notes, by_year, metadata)')
+    
+    
     args = parser.parse_args()
     
     if args.export:
@@ -241,8 +261,12 @@ async def main():
         await organize_papers()
         return
     
+    if args.flush_org:
+        await flush_organization()
+        return
+    
     # Update Settings
-    Settings.PAPERS_PER_CATEGORY = args.papers_per_category
+    Settings.PAPERS_PER_CATEGORY = args.get
     Settings.FORCE_UPDATE = args.force
     
     # Ensure directories exist
@@ -254,7 +278,7 @@ async def main():
     pdf_manager = AsyncPDFManager()
     
     # Collect papers
-    print(f"Collecting papers from arXiv ({args.papers_per_category} per category) and Zotero...")
+    print(f"Collecting papers from arXiv ({args.get} per category) and Zotero...")
     total_papers, new_papers = await paper_manager.collect_all()
     print(f"Successfully collected {total_papers} papers")
     
