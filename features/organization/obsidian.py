@@ -1,12 +1,13 @@
 from pathlib import Path
 from typing import Dict
 from features.shared.database import Paper
+from config.settings import Settings
 import re
 from datetime import datetime
 
 class ObsidianManager:
-    def __init__(self, notes_dir: Path):
-        self.notes_dir = notes_dir
+    def __init__(self):
+        self.notes_dir = Path(Settings.OBSIDIAN_VAULT_PATH)
         self.notes_dir.mkdir(parents=True, exist_ok=True)
         
         # Create index file if it doesn't exist

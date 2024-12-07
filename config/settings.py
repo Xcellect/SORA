@@ -20,6 +20,9 @@ class Settings:
 
     # OpenAI
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+    # Obsidian settings
+    OBSIDIAN_VAULT_PATH = os.getenv('OBSIDIAN_VAULT_PATH', str(BASE_DIR / 'auto_notes'))
     
     # ArXiv categories
     ARXIV_CATEGORIES = [

@@ -68,10 +68,10 @@ class ContentAnalyzer:
         try:
             print(f"DEBUG: Starting LLM analysis, text length: {len(text)}")
             response = await self.client.chat.completions.create(
-                model="gpt-4-turbo-preview",
+                model="gpt-4-turbo",
                 messages=[
                     {"role": "system", "content": self.system_prompt},
-                    {"role": "user", "content": self.analysis_prompt.format(text=text[:8000])}
+                    {"role": "user", "content": self.analysis_prompt.format(text=text[:15000])}
                 ],
                 temperature=0.3,
                 response_format={"type": "json_object"}

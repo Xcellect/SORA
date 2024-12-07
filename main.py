@@ -7,7 +7,6 @@ from tqdm import tqdm
 from typing import List
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlalchemy import select
 

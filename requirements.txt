@@ -16,3 +16,4 @@ networkx~=3.2
 openai~=1.12.0
 tenacity~=8.2.3
 greenlet~=3.0.3
+aiosqlite~=0.20.0

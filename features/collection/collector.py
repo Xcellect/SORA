@@ -139,61 +139,86 @@ class PaperCollector:
     async def collect_from_zotero(self) -> List[Paper]:
         """Collect papers from Organic Collection only"""
         collected = []
-        items = await asyncio.to_thread(
-            self.zot.collection_items, 
-            self.organic_collection_key, 
-            limit=100
-        )
+        VALID_TYPES = {
+            'journalArticle', 
+            'preprint',
+            'conferencePaper',
+            'report',
+            'thesis',
+            'manuscript',
+            'book',
+            'bookSection'
+        }
         
-        for item in tqdm(items, desc="Collecting from Zotero"):
-            if item['data']['itemType'] == 'journalArticle':
-                # Get PDF attachment if available
-                attachments = await asyncio.to_thread(
-                    self.zot.children, 
-                    item['key']
-                )
+        try:
+            print(f"DEBUG: Using Zotero collection key: {self.organic_collection_key}")
+            
+            items = await asyncio.to_thread(
+                self.zot.collection_items, 
+                self.organic_collection_key,
+                limit=Settings.PAPERS_PER_CATEGORY
+            )
+            
+            print(f"DEBUG: Found {len(items)} items in Zotero collection")
+            
+            for item in tqdm(items, desc="Collecting from Zotero"):
+                item_type = item['data'].get('itemType')
+                print(f"DEBUG: Processing item type: {item_type}")
                 
-                pdf_url = None
-                for attachment in attachments:
-                    if attachment['data'].get('contentType') == 'application/pdf':
-                        pdf_url = attachment['data'].get('url')
-                        break
-                
-                # If no attachment URL, try the main URL
-                if not pdf_url:
-                    pdf_url = item['data'].get('url')
+                if item_type in VALID_TYPES:
+                    # Get PDF attachment if available
+                    attachments = await asyncio.to_thread(
+                        self.zot.children, 
+                        item['key']
+                    )
+                    
+                    pdf_url = None
+                    for attachment in attachments:
+                        if attachment['data'].get('contentType') == 'application/pdf':
+                            pdf_url = attachment['data'].get('url')
+                            break
+                    
+                    # If no attachment URL, try the main URL
+                    if not pdf_url:
+                        pdf_url = item['data'].get('url')
+                    
+                    print(f"DEBUG: Processing paper: {item['data'].get('title')}")
+                    print(f"DEBUG: PDF URL: {pdf_url}")
 
-                paper = Paper(
-                    title=item['data'].get('title'),
-                    authors=self._extract_authors(item['data'].get('creators', [])),
-                    abstract=item['data'].get('abstractNote'),
-                    url=pdf_url,  # Use PDF URL if available
-                    source='zotero',
-                    date=self._parse_date(item['data'].get('date')),
-                    doi=item['data'].get('DOI'),
-                    journal=item['data'].get('publicationTitle'),
-                    paper_metadata={
-                        'zotero_key': item['key'],
-                        'volume': item['data'].get('volume'),
-                        'issue': item['data'].get('issue'),
-                        'pages': item['data'].get('pages'),
-                        'tags': item['data'].get('tags', [])
-                    }
-                )
-                collected.append(paper)
-        
-        return collected
-
-    async def collect_papers(self, source: str = 'arxiv') -> List[Paper]:
-        """Collect papers from specified source only"""
-        if source.lower() == 'arxiv':
-            papers = await self.collect_from_arxiv()
-            # Papers are already added to Zotero in collect_from_arxiv
-            return papers
-        elif source.lower() == 'zotero':
-            return await self.collect_from_zotero()
-        else:
-            raise ValueError(f"Unknown source: {source}")
+                    paper = Paper(
+                        title=item['data'].get('title'),
+                        authors=self._extract_authors(item['data'].get('creators', [])),
+                        abstract=item['data'].get('abstractNote'),
+                        url=pdf_url,
+                        source='zotero',
+                        date=self._parse_date(item['data'].get('date')),
+                        doi=item['data'].get('DOI'),
+                        journal=item['data'].get('publicationTitle') or item['data'].get('repository'),
+                        paper_metadata={
+                            'zotero_key': item['key'],
+                            'item_type': item_type,
+                            'volume': item['data'].get('volume'),
+                            'issue': item['data'].get('issue'),
+                            'pages': item['data'].get('pages'),
+                            'tags': item['data'].get('tags', []),
+                            'repository': item['data'].get('repository'),
+                            'archive': item['data'].get('archive')
+                        }
+                    )
+                    collected.append(paper)
+                    print(f"DEBUG: Added paper to collection: {paper.title}")
+                else:
+                    if item_type != 'attachment':  # Don't log attachment skips
+                        print(f"DEBUG: Skipping item type '{item_type}': {item['data'].get('title')}")
+                    
+            print(f"DEBUG: Collected {len(collected)} papers from Zotero")
+            return collected
+            
+        except Exception as e:
+            print(f"Error collecting from Zotero: {e}")
+            import traceback
+            print(f"DEBUG: Traceback:\n{traceback.format_exc()}")
+            return []
     
 
 class AsyncPaperManager:
@@ -241,23 +266,25 @@ class AsyncPaperManager:
                     # Add paper if it's new or if it exists but has no PDF
                     if not paper_status or (not paper_status['has_pdf'] and Settings.FORCE_UPDATE):
                         if paper_status:  # Paper exists but no PDF, delete old entry
-                            session.query(Paper).filter_by(title=paper.title).delete()
-                            session.flush()
+                            await session.execute(
+                                delete(Paper).where(Paper.title == paper.title)
+                            )
+                            await session.flush()
                         
                         session.add(paper)
-                        session.flush()
+                        await session.flush()
                         stored_papers.append(paper)
                     else:
                         print(f"Skipping duplicate paper (with PDF): {paper.title[:50]}...")
                 except Exception as e:
-                    session.rollback()
+                    await session.rollback()
                     print(f"Error storing paper {paper.title[:50]}...: {e}")
                     continue
             
             try:
-                session.commit()
+                await session.commit()
             except Exception as e:
-                session.rollback()
+                await session.rollback()
                 print(f"Error committing papers: {e}")
                 return []
             
@@ -270,9 +297,9 @@ class AsyncPaperManager:
         
         # Collect new papers from specified source only
         if source.lower() == 'arxiv':
-            papers = await self.collector.collect_papers(source='arxiv')
+            papers = await self.collector.collect_from_arxiv()
         elif source.lower() == 'zotero':
-            papers = await self.collector.collect_papers(source='zotero')
+            papers = await self.collector.collect_from_zotero()
         else:
             raise ValueError(f"Unknown source: {source}")
         
@@ -280,6 +307,7 @@ class AsyncPaperManager:
         stored_papers = await self.store_papers(papers, existing_papers)
         
         return len(papers), stored_papers
+        
     
     def deduplicate_papers(self, papers: List[Paper]) -> List[Paper]:
         """Remove duplicate papers based on title"""
